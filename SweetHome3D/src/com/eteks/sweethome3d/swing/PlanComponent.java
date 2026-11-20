@@ -2002,12 +2002,16 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
     }
     return strokeWidth;
   }
-  
+
   /**
-   * Prints this component plan at the scale given in the home print attributes or at a scale 
-   * that makes it fill <code>pageFormat</code> imageable size if this attribute is <code>null</code>.
+   * Prints the plan of the currently selected level, at the scale given in the home
+   * print attributes, or at a scale that makes it fill <code>pageFormat</code> imageable
+   * size if that attribute is <code>null</code>.
+   * @param pageIndex the page of the selected level's plan to print, starting at 0
+   * @return {@link #PAGE_EXISTS} if the page was printed, or {@link #NO_SUCH_PAGE}
+   *         if the selected level has no such page or nothing to print.
    */
-  public int print(Graphics g, PageFormat pageFormat, int pageIndex) {
+  public int printSelectedLevel(Graphics g, PageFormat pageFormat, int pageIndex) {
     List<Selectable> printedItems = getPaintedItems(); 
     Rectangle2D printedItemBounds = getItemsBounds(g, printedItems);
     if (printedItemBounds != null) {
@@ -2072,6 +2076,46 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
       return PAGE_EXISTS;
     } else {
       return NO_SUCH_PAGE;
+    }
+  }
+
+  /**
+   * Prints the plan of every viewable level of the home, one level per page, in the
+   * order of {@link Home#getLevels()}. Page <code>pageIndex</code> holds the plan of the
+   * <code>pageIndex</code>th viewable level. If the home has no levels, prints its
+   * single plan as {@link #printSelectedLevel(Graphics, PageFormat, int) printSelectedLevel}
+   * does.
+   * <p>Each level is selected temporarily to be painted. The level that was selected
+   * before this call is always restored, even if painting the page throws an exception.</p>
+   * @param g          the graphics context to print to
+   * @param pageFormat the size and orientation of the page
+   * @param pageIndex  the zero-based index of the page to print
+   * @return {@link #PAGE_EXISTS} if the page was printed, or {@link #NO_SUCH_PAGE}
+   *         if <code>pageIndex</code> is beyond the last viewable level
+   *         or the level has nothing to print.
+   */
+  public int print(Graphics g, PageFormat pageFormat, int pageIndex) {
+    List<Level> levels = this.home.getLevels();
+    if (levels.isEmpty()) {
+      return printSelectedLevel(g, pageFormat, pageIndex);
+    }
+
+    List<Level> viewableLevels = new ArrayList<Level>();
+    for (Level level : levels) {
+      if (level.isViewable()) {
+        viewableLevels.add(level);
+      }
+    }
+    if (pageIndex < 0 || pageIndex >= viewableLevels.size()) {
+      return NO_SUCH_PAGE;
+    }
+
+    Level previousLevel = this.home.getSelectedLevel();
+    try {
+      this.home.setSelectedLevel(viewableLevels.get(pageIndex));
+      return printSelectedLevel(g, pageFormat, 0);
+    } finally {
+      this.home.setSelectedLevel(previousLevel);
     }
   }
   
